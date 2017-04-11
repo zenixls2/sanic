@@ -17,7 +17,7 @@ from sanic.config import Config
 from sanic.constants import HTTP_METHODS
 from sanic.exceptions import ServerError, URLBuildError, SanicException
 from sanic.handlers import ErrorHandler
-from sanic.log import log
+from sanic.log import log, netlog
 from sanic.response import HTTPResponse, StreamingHTTPResponse
 from sanic.router import Router
 from sanic.server import serve, serve_multiple, HttpProtocol
@@ -32,6 +32,7 @@ class Sanic:
     def __init__(self, name=None, router=None, error_handler=None,
                  load_env=True,
                  log_config_path=os.path.join(lib_path[0], "default.conf")):
+        conf = None
         if log_config_path and os.path.exists(log_config_path):
             with open(log_config_path) as f:
                 conf = yaml.load(f)
@@ -39,7 +40,7 @@ class Sanic:
                 logging.config.dictConfig(conf)
         # Only set up a default log handler if the
         # end-user application didn't set anything up.
-        if not logging.root.handlers and log.level == logging.NOTSET:
+        if not conf and log.level == logging.NOTSET:
             formatter = logging.Formatter(
                 "%(asctime)s: %(levelname)s: %(message)s")
             handler = logging.StreamHandler()
@@ -56,6 +57,7 @@ class Sanic:
         self.router = router or Router()
         self.error_handler = error_handler or ErrorHandler()
         self.config = Config(load_env=load_env)
+        self.log_config_path = log_config_path
         self.request_middleware = deque()
         self.response_middleware = deque()
         self.blueprints = {}
@@ -452,7 +454,6 @@ class Sanic:
             # -------------------------------------------- #
             # Request Middleware
             # -------------------------------------------- #
-
             request.app = self
             response = await self._run_request_middleware(request)
             # No middleware results
@@ -500,6 +501,13 @@ class Sanic:
                 log.exception(
                     'Exception occured in one of response middleware handlers'
                 )
+        if self.log_config_path:
+            netlog.info('', extra={
+                "host": "%s:%d" % request.ip,
+                "request": "%s %s" % (request.method, request.query_string),
+                "status": response.status,
+                "byte": len(response.body)
+            })
 
         # pass the response to the correct callback
         if isinstance(response, StreamingHTTPResponse):

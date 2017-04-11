@@ -11,12 +11,24 @@ formatters:
     simple:
         format: '%(asctime)s - (%(name)s)[%(levelname)s]: %(message)s'
         datefmt: '%Y-%m-%d %H:%M:%S'
+    access:
+        format: '%(asctime)s - [%(levelname)s][%(host)s]: %(request)s %(message)s %(status)s %(byte)d'
+        datefmt: '%Y-%m-%d %H:%M:%S'
 
 handlers:
-    access:
+    internal:
         class: logging.handlers.TimedRotatingFileHandler
         filters: [access_filter]
         formatter: simple
+        when: 'D'
+        interval: 1
+        backupCount: 7
+        filename: 'access.log'
+
+    access:
+        class: logging.handlers.TimedRotatingFileHandler
+        filters: [access_filter]
+        formatter: access
         when: 'D'
         interval: 1
         backupCount: 7
@@ -34,7 +46,7 @@ handlers:
 loggers:
     sanic:
         level: DEBUG
+        handlers: [internal, error]
+    network:
+        level: DEBUG
         handlers: [access, error]
-root:
-    level: DEBUG
-    handlers: [access, error]
